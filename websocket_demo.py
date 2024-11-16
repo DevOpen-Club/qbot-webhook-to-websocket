@@ -2,7 +2,7 @@ import asyncio
 import websockets
 
 async def connect_to_websocket(secret):
-    uri = f"ws://qqwebhook.docb.cn/ws/{secret}"  # 需要替换为您的WebSocket服务器地址和port
+    uri = f"ws://ooo.docb.cn/ws/{secret}"  # 需要替换为您的WebSocket服务器地址和port
     async with websockets.connect(uri) as websocket:
         print(f"Connected to WebSocket with secret: {secret}")
 
@@ -18,5 +18,5 @@ async def connect_to_websocket(secret):
             print(f"Connection closed with exception: {e}")
 
 if __name__ == "__main__":
-    secret = "iChChChDjFlHnJqNuRyV3b9hFnMvU3cB"  # 替换为实际的secret
+    secret = "ixxxxxxxxxxxxxxxFnMvU3cB"  # 替换为实际的secret
     asyncio.run(connect_to_websocket(secret))
