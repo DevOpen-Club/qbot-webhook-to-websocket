@@ -52,7 +52,7 @@ uvicorn
 保存后，请配置【事件接收】。
 
 ### 4.2 Websocket测试
-WebSocket统一连接地址格式：`ws://{域名}/ws?secret={机器人密钥}`
+WebSocket统一连接地址格式：`ws://{域名}/ws/{机器人密钥}`
 
 > 【WebSocket文档】请见附录。 WebSocket Python Demo 请见`websocket_demo.py`
 
