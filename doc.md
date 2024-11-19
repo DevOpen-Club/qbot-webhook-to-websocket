@@ -81,7 +81,7 @@ uvicorn.run(app, host="0.0.0.0", port={端口})
 
 **WebSocket 统一连接地址**
 ```
-ws://{域名}/ws?secret={机器人密钥}
+ws://{域名}/ws/机器人密钥}
 ```
 **WebSocket 生命心跳**
 
