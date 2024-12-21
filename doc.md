@@ -43,6 +43,8 @@ uvicorn
 ### 4.1 开放平台测试
 打开QQ开放平台，找到事件通知地址配置区域，输入你的地址：https://{域名}/webhook?secret={机器人密钥}
 
+**v1.1:使用前，需要先在管理后台内给 Secret 增加白名单，否则 Webhook 和 Websocket 都会拒绝连接。**
+
 其中，请将 {域名} 替换为你的域名，{机器人密钥} 替换为你的机器人密钥。密钥应该类似于 iChChjFlHnJqNuRyV3b9hFSJDNds5。
 
 完成配置后，你应该看到开放平台推送了回调验证，不提示任何信息、可以保存配置即代表部署成功！可以保存了。
@@ -52,7 +54,7 @@ uvicorn
 保存后，请配置【事件接收】。
 
 ### 4.2 Websocket测试
-WebSocket统一连接地址格式：`ws://{域名}/ws/{机器人密钥}`
+WebSocket统一连接地址格式：`ws://{域名}/ws?secret={机器人密钥}`
 
 > 【WebSocket文档】请见附录。 WebSocket Python Demo 请见`websocket_demo.py`
 
@@ -81,7 +83,7 @@ uvicorn.run(app, host="0.0.0.0", port={端口})
 
 **WebSocket 统一连接地址**
 ```
-ws://{域名}/ws/机器人密钥}
+ws://{域名}/ws?secret={机器人密钥}
 ```
 **WebSocket 生命心跳**
 
@@ -93,3 +95,24 @@ ws://{域名}/ws/机器人密钥}
 
 **其他说明**
 - 目前，Websocket 连接成功建立后才能够正常收到由 WebHook 推送的消息。
+
+# 附录3：从 v1.0 升级到 v1.1
+
+## 1.安装新 python 模块
+前往宝塔面板-python项目-你的项目-模块，安装下列模块：
+> jinja2 
+>
+> python-multipart
+## 2.修改 main.py
+复制最新的 v1.1 版本的 main.py 到你的项目目录下，覆盖原有文件。
+
+将代码中的
+````python
+ADMIN_PWD="xxxxx" # 后台管理员密码
+ADMIN_ENTER="/admin" # 后台入口路径，格式：/xxx
+````
+修改为你的后台管理员密码和入口路径。
+## 3.载入 templates 目录
+项目根目录下上传仓库内的 templates 目录。
+## 4.重启项目
+重启项目，测试是否正常运行。然后增加 Secret 白名单即可使用。
