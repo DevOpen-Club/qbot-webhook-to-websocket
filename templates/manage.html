@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>管理 Secrets</title>
+</head>
+<body>
+    <h1>管理 Secrets</h1>
+    <a href="/logout">注销</a>
+    <br>
+    <h2>Secrets 列表</h2>
+    <ul>
+        {% for secret in secrets %}
+            <li>{{ secret[1] }} <form action="/delete_secret" method="post" style="display:inline;">
+                <input type="hidden" name="secret" value="{{ secret[1] }}">
+                <button type="submit">删除</button>
+            </form></li>
+        {% endfor %}
+    </ul>
+    <h2>创建新的 Secret</h2>
+    <form action="/create_secret" method="post">
+        <label for="secret">Secret:</label>
+        <input type="text" id="secret" name="secret" required>
+        <br>
+        <button type="submit">创建</button>
+    </form>
+</body>
+</html>
