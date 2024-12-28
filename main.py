@@ -132,11 +132,12 @@ async def handle_webhook(
     # 这里是处理普通消息事件的部分
 
     if secret in active_connections:  # 判断推送的消息所对应的 secret 的 websocket 是否连接
-        logging.info("即将把消息推送给ws: %s", secret)
-        await active_connections[secret].send_text(body_str)  # 推送消息给对应的 websocket
+        logging.info("即将把消息推送给 ws: %s", secret)
+        for connection in active_connections[secret]:
+            await connection.send_text(body_str)  # 推送消息给所有与此 secret 连接的 websocket
         return {"message": "Data pushed to WebSocket"}
     else:  # 如果没有连接，则返回错误信息
-        logging.warning("对应secret的ws没有被连接: %s", secret)
+        logging.warning("对应 secret 的 ws 没有被连接: %s", secret)
         return {"message": "No active WebSocket connection found for secret"}
 
 @app.websocket("/ws/{secret}")  # 建立 WebSocket 服务端
@@ -147,14 +148,18 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
         return
 
     await websocket.accept()  # 接受 WebSocket 连接请求
-    active_connections[secret] = websocket  # 将当前连接存储到active_connections字典
+    if secret not in active_connections:
+        active_connections[secret] = []
+    active_connections[secret].append(websocket)  # 将当前连接存储到 active_connections 字典里的列表中
     try:
         while True:
-            data = await websocket.receive_text()  # 获取客户端push过来的消息
-            logging.info("收到来自ws的消息: %s", data)
+            data = await websocket.receive_text()  # 获取客户端 push 过来的消息
+            logging.info("收到来自 ws 的消息: %s", data)
     except WebSocketDisconnect:
-        logging.info(f" {secret} 的 WebSocket 连接断开.")
-        del active_connections[secret]  # 当连接断开时，从字典中移除
+        logging.info(f"{secret} 的 WebSocket 连接断开.")
+        active_connections[secret].remove(websocket)  # 当连接断开时，从列表中移除
+        if not active_connections[secret]:  # 如果列表为空，移除该 key
+            del active_connections[secret]
 
 @app.get(ADMIN_ENTER, response_class=HTMLResponse)
 async def read_root(request: Request):
