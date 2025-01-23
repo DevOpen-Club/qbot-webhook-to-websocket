@@ -1,6 +1,7 @@
 # QQ机器人 WebHook -> Websocket 易用版使用文档
 
 # 开发前言
+**如果你不知道怎么部署，你可以联系QQ：2862443924（有偿服务）**
 
 QQ机器人 WebHook 是 QQ 机器人提供的一种消息推送方式，通过 WebHook 接口，可以将消息实时推送到 QQ 机器人的服务端上。
 
@@ -24,11 +25,25 @@ QQ机器人 WebHook 是 QQ 机器人提供的一种消息推送方式，通过 W
 fastapi
 cryptography
 pydantic
+websockets-connector-python
+jinja2
 uvicorn
 ```
 安装后，尝试启动项目
 
-## Step 3：绑定域名、SSL
+## Step 3: 修改配置
+找到`main.py`·文件，修改以下内容：
+
+```python
+ADMIN_PWD="xxxxx" # 后台管理员密码
+ADMIN_ENTER="/admin" # 后台入口路径，格式：/xxx
+```
+
+找到随附的`sqlitetest.py`文件，取消注释第9行，Bob修改为你的登录Secret，1111修改为你的APItoken。
+
+修改/templates/index.html文件和/templates/manage.html文件，把post地址改为/{后台路径}/xxx。
+
+## Step 4：绑定域名、SSL
 点击创建的项目设置 -> 域名管理 -> 绑定域名
 
 如何绑定这里不过多赘述。
@@ -41,11 +56,11 @@ uvicorn
 
 ## Step 4：测试可用性
 ### 4.1 开放平台测试
-打开QQ开放平台，找到事件通知地址配置区域，输入你的地址：https://{域名}/webhook?secret={机器人密钥}
+打开QQ开放平台，找到事件通知地址配置区域，输入你的地址：https://{域名}/webhook?secret={机器人密钥}&token={Token}
 
 **v1.1:使用前，需要先在管理后台内给 Secret 增加白名单，否则 Webhook 和 Websocket 都会拒绝连接。**
 
-其中，请将 {域名} 替换为你的域名，{机器人密钥} 替换为你的机器人密钥。密钥应该类似于 iChChjFlHnJqNuRyV3b9hFSJDNds5。
+其中，请将 {域名} 替换为你的域名，{机器人密钥} 替换为你的机器人密钥。密钥应该类似于 iChChjFlHnJqNuRyV3b9hFSJDNds5。token为10位，校验身份。（v.1.2新增）
 
 完成配置后，你应该看到开放平台推送了回调验证，不提示任何信息、可以保存配置即代表部署成功！可以保存了。
 
@@ -54,11 +69,11 @@ uvicorn
 保存后，请配置【事件接收】。
 
 ### 4.2 Websocket测试
-WebSocket统一连接地址格式：`ws://{域名}/ws?secret={机器人密钥}`
+WebSocket统一连接地址格式：`ws://{域名}/ws/{机器人密钥}/{TOKEN}`
 
 > 【WebSocket文档】请见附录。 WebSocket Python Demo 请见`websocket_demo.py`
 
-其中，请将 {域名} 替换为你的域名，{机器人密钥} 替换为你的机器人密钥。密钥应该类似于 iChChChDjFlHnJqNuRyV3b9hFSJDNds5。
+其中，请将 {域名} 替换为你的域名，{机器人密钥} 替换为你的机器人密钥。密钥应该类似于 iChChChDjFlHnJqNuRyV3b9*****JDNds5。Token为10位，校验身份。（v.1.2新增）
 
 打开你的 WebSocket 测试工具，输入上述地址，连接成功后，尝试在群/频道内@机器人 消息，看看 ws 里有没有收到消息。
 
@@ -83,7 +98,7 @@ uvicorn.run(app, host="0.0.0.0", port={端口})
 
 **WebSocket 统一连接地址**
 ```
-ws://{域名}/ws?secret={机器人密钥}
+ws://{域名}/ws/{机器人密钥}/{TOKEN}
 ```
 **WebSocket 生命心跳**
 
@@ -96,7 +111,7 @@ ws://{域名}/ws?secret={机器人密钥}
 **其他说明**
 - 目前，Websocket 连接成功建立后才能够正常收到由 WebHook 推送的消息。
 
-# 附录3：从 v1.0 升级到 v1.1
+# 附录3：从 v1.1 升级到 v1.2
 
 ## 1.安装新 python 模块
 前往宝塔面板-python项目-你的项目-模块，安装下列模块：
@@ -116,3 +131,4 @@ ADMIN_ENTER="/admin" # 后台入口路径，格式：/xxx
 项目根目录下上传仓库内的 templates 目录。
 ## 4.重启项目
 重启项目，测试是否正常运行。然后增加 Secret 白名单即可使用。
+

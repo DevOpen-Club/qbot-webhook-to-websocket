@@ -1,7 +1,7 @@
 # *-* coding:utf-8 *-*
 '''
 Author: WrunDorry
-Date: 2024/12/21
+Date: 2025/01/23
 Description: qbots-webhook-to-websocket
 Licence: AGPL-v3
 '''
@@ -11,12 +11,16 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import hashlib
+import string
+import json
 import sys
 from binascii import unhexlify
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.backends import default_backend
 import logging
 import asyncio
+import random
 import sqlite3
 from starlette.responses import Response
 
@@ -34,25 +38,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import os
+template_dir = os.path.join(os.path.dirname(__file__), "templates")
+if not os.path.isdir(template_dir):
+    print(f"目录 {template_dir} 不存在")
+else:
+    print(f"目录 {template_dir} 存在")
+
 # 配置模板引擎
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=template_dir)
+
 
 # 用于储存 WebSocket 连接对象的字典
 active_connections = {}
-
+database_file = os.path.join(os.path.dirname(__file__), "database.db")
 # 连接到 SQLite 数据库（如果数据库不存在，则会自动创建）
-conn = sqlite3.connect('database.db', check_same_thread=False)
+conn = sqlite3.connect(database_file, check_same_thread=False)
 cursor = conn.cursor()
 
 # 创建表（如果表不存在）
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS secrets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    secret TEXT NOT NULL UNIQUE
+    secret TEXT NOT NULL UNIQUE,
+    md5_token TEXT NOT NULL UNIQUE
 )
 """)
 conn.commit()
-
+def get_md5_hash(input_string):
+    # 创建一个 md5 哈希对象
+    md5_hash = hashlib.md5()
+    
+    # 更新哈希对象，使用字符串的字节形式
+    md5_hash.update(input_string.encode('utf-8'))
+    
+    # 获取十六进制的哈希值
+    hex_md5 = md5_hash.hexdigest()
+    
+    return hex_md5
+def generate_random_string(length=50):
+    # 定义可用字符集，包括字母和数字
+    characters = string.ascii_letters + string.digits
+    
+    # 生成随机字符串
+    random_string = ''.join(random.choice(characters) for _ in range(length))
+    
+    return random_string
 # 配置签名计算函数
 def generate_signature(bot_secret, event_ts, plain_token):
     while len(bot_secret) < 32:  # 生成 32 字节的 seed
@@ -81,7 +112,19 @@ logging.basicConfig(level=logging.INFO)
 def is_secret_valid(secret):
     cursor.execute("SELECT * FROM secrets WHERE secret = ?", (secret,))
     return cursor.fetchone() is not None
-
+def is_token_valid(secret,token):
+    token=get_md5_hash(token)
+    cursor.execute("SELECT * FROM secrets WHERE secret = ?", (secret,))
+    row=cursor.fetchone()
+    if row:
+        md5_token=row[2]
+        if md5_token==token:
+            return True
+        else:
+            return False
+    else:
+        return False
+    
 def is_admin(password, secret):
     admin_password = ADMIN_PWD
     if password == admin_password:
@@ -93,6 +136,18 @@ def is_admin(password, secret):
     if row :
         return True
     return False
+
+def is_admin_api(token):
+    
+    cursor.execute("SELECT md5_token FROM secrets ORDER BY id LIMIT 1")
+    row = cursor.fetchone()
+    if row :
+        if token == row[0]:
+            return True
+        else:
+            return False
+    else:
+        return False
 @app.post("/webhook")  # 接收 QQ 开放平台的 webhook 请求
 async def handle_webhook(
     request: Request,
@@ -102,6 +157,11 @@ async def handle_webhook(
     secret: str = None  # 通过URL查询参数获取secret
 ):
     secret = request.query_params.get('secret')  # 从请求的URL中获取secret
+    token = request.query_params.get('token')  # 从请求的URL中获取token
+    if not token:
+        logging.error("没有提供 token 参数")
+        return {"msg": "error"}
+    
     if not secret:
         logging.error("没有提供 secret 参数")
         return {"msg": "error"}
@@ -109,7 +169,10 @@ async def handle_webhook(
     if not is_secret_valid(secret):
         logging.error("无效的 secret: %s", secret)
         return {"msg": "error"}
-
+    
+    if not is_token_valid(secret,token):
+        logging.error("无效的 token: %s", token)
+        return {"msg": "error"}
     body_bytes = await request.body()  # 获取请求体
     logging.info("收到消息 %s", body_bytes)
     body_str = body_bytes.decode('utf-8')  # 解码为字符串
@@ -140,8 +203,11 @@ async def handle_webhook(
         logging.warning("对应 secret 的 ws 没有被连接: %s", secret)
         return {"message": "No active WebSocket connection found for secret"}
 
-@app.websocket("/ws/{secret}")  # 建立 WebSocket 服务端
-async def websocket_endpoint(websocket: WebSocket, secret: str):
+@app.websocket("/ws/{secret}/{token}")  # 建立 WebSocket 服务端
+async def websocket_endpoint(websocket: WebSocket, secret: str, token: str):
+    if not is_token_valid(secret,token):
+        logging.error("无效的 token: %s", token)
+        await websocket.close(code=1008, reason="Invalid token")
     if not is_secret_valid(secret):
         logging.error("无效的 secret: %s", secret)
         await websocket.close(code=1008, reason="Invalid secret")
@@ -171,7 +237,7 @@ async def login(response: Response, password: str = Form(...), secret: str = For
         logging.error("登录失败: 无效的密码或 secret")
         return {"msg": "error"+secret+""}
     
-    response = RedirectResponse(url="/manage", status_code=303)
+    response = RedirectResponse(url=ADMIN_ENTER+"/manage", status_code=303)
     response.set_cookie(key="admin_secret", value=secret)
     response.set_cookie(key="admin_password", value=password)
     return response
@@ -197,10 +263,12 @@ async def create_secret(request: Request,secret: str = Form(...)):
         return {"msg": "error"}
     
     try:
-        cursor.execute("INSERT INTO secrets (secret) VALUES (?)", (secret,))
+        token=generate_random_string(10)
+        md5_token=get_md5_hash(token)
+        cursor.execute("INSERT INTO secrets (secret,md5_token) VALUES (?,?)", (secret,md5_token,))
         conn.commit()
         logging.info("成功创建 secret: %s", secret)
-        return {"msg": "success"}
+        return {"msg": "成功了，可以返回/{ADMIN_ENTER}/manage页面查看【请注意保护token，token只显示一次】","token":token}
     except sqlite3.IntegrityError:
         logging.error("secret 已经存在: %s", secret)
         return {"msg": "error"}
@@ -222,7 +290,38 @@ async def delete_secret(request: Request,secret: str = Form(...)):
     except Exception as e:
         logging.error("删除 secret 时发生错误: %s", e)
         return {"msg": "error"}
-
+@app.post(ADMIN_ENTER+"/api")
+async def api(request: Request):
+    token = request.query_params.get('token')
+    if not is_admin_api(token):
+        logging.error("未授权访问 API")
+        return {"msg": "error"}
+    data=await request.body()
+    try:
+        data=json.loads(data)
+    except:
+        return {"status":False,"code":201,"msg":"解析出错不是合法的json"}
+    if data['action']=='create_secret':
+        sql="INSERT INTO secrets (secret,md5_token) VALUES (?,?)"
+        try:
+            token=generate_random_string(10)
+            md5_token=get_md5_hash(token)
+            cursor.execute(sql,(data['secret'],md5_token,))
+            conn.commit()
+            return {"status":True,"code":200,"msg":"创建成功，请注意保护token，token只显示一次","token":token}
+        except:
+            return {"status":False,"code":201,"msg":"创建失败"}
+    elif data['action']=='delete_secret':
+        sql="DELETE FROM secrets WHERE secret = ?"
+        try:
+            cursor.execute(sql,(data['secret'],))
+            conn.commit()
+            return {"status":True,"code":200,"msg":"删除成功"}
+        except:
+            return {"status":False,"code":201,"msg":"删除失败"}
+    else:
+        return {"status":False,"code":201,"msg":"未知的操作"}
+            
 # 启动服务
 if __name__ == "__main__":
     import uvicorn
