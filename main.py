@@ -319,6 +319,18 @@ async def api(request: Request):
             return {"status":True,"code":200,"msg":"删除成功"}
         except:
             return {"status":False,"code":201,"msg":"删除失败"}
+    elif data['action']=='is_secrets':
+        sql="SELECT * FROM secrets WHERE secret = ?"
+        try:
+            cursor.execute(sql,(data['secret'],))
+            row=cursor.fetchone()
+            if row:
+                return {"status":True,"code":200,"msg":"存在"}
+            else:
+                return {"status":False,"code":201,"msg":"不存在"}
+        except:
+            return {"status":False,"code":201,"msg":"查询失败"}
+        
     else:
         return {"status":False,"code":201,"msg":"未知的操作"}
             
