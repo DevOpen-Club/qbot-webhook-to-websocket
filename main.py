@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request, Header, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import sys
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.backends import default_backend
 import logging
@@ -52,7 +53,7 @@ class Payload(BaseModel):
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
-
+sys.exit()
 @app.post("/webhook") # 接收 QQ 开放平台的 webhook 请求
 async def handle_webhook(
     request: Request,
@@ -92,7 +93,7 @@ async def handle_webhook(
         logging.warning("对应secret的ws没有被连接: %s", secret)
         return {"message": "No active WebSocket connection found for secret"}
 
-    
+
 
 
 @app.websocket("/ws/{secret}") # 建立 WebSocket 服务端
