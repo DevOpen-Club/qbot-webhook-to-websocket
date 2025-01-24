@@ -1,3 +1,4 @@
+## 该版本不再支持。请使用最新版本。
 <p align="center">
   <a href="https://q.qq.com">
     <img src="https://fb-cdn.fanbook.cn/fanbook/app/files/chatroom/image/c10d371bbf1a9f316e0089ac29a9c9b7.png" width="120" height="120" style="border-radius: 20px;" alt="QQ机器人webhook">
