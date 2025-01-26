@@ -1,16 +1,10 @@
 # *-* coding:utf-8 *-*
-'''
-Author: WrunDorry
-Date: 2024/11/16
-Description: qbots-webhook-to-websocket
-Licence: AGPL
-'''
+
 # 导入所需模块
 from fastapi import FastAPI, Request, Header, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import sys
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.backends import default_backend
 import logging
@@ -29,7 +23,7 @@ app.add_middleware(
 
 # 用于储存 WebSocket 连接对象的字典
 active_connections = {}
-
+heartbeat_status = True # 是否启用心跳检测
 # 配置签名计算函数
 def generate_signature(bot_secret, event_ts, plain_token):
     while len(bot_secret) < 32: # 生成 32 字节的 seed
@@ -53,7 +47,7 @@ class Payload(BaseModel):
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
-sys.exit()
+
 @app.post("/webhook") # 接收 QQ 开放平台的 webhook 请求
 async def handle_webhook(
     request: Request,
@@ -93,8 +87,35 @@ async def handle_webhook(
         logging.warning("对应secret的ws没有被连接: %s", secret)
         return {"message": "No active WebSocket connection found for secret"}
 
+async def heartbeat(SecretArray=active_connections):
+    if heartbeat_status:
+        try:
+            for secret in SecretArray:
+                await active_connections[secret].send_text("ping")
+                logging.info("发送心跳包: %s", secret)
+                try:
+                    response = await asyncio.wait_for(active_connections[secret].receive_text(), timeout=10)
+                except asyncio.TimeoutError:
+                    logging.warning(f"{secret}心跳响应超时：{secret}")
+                    continue
+                if response != "pong":
+                    logging.warning(f"{secret}心跳响应异常：响应内容为{response}")
+                    continue
+                else:
+                    logging.info(f"{secret}心跳响应正常：{response}")
+                    continue
+        except WebSocketDisconnect:
+            try:
+                await active_connections[secret].send_text("最后一次尝试发送心跳包") # 当连接断开时，向客户端发送消息
+            except:
+                logging.info(f"无法向 {secret} 发送消息，WebSocket连接已断开.")
+            del active_connections[secret] # 当连接断开时，从字典中移除
 
-
+# 启动心跳循环机制
+async def start_heartbeat():
+    while True:
+        await asyncio.sleep(300)
+        await heartbeat()
 
 @app.websocket("/ws/{secret}") # 建立 WebSocket 服务端
 async def websocket_endpoint(websocket: WebSocket, secret: str):
@@ -105,10 +126,15 @@ async def websocket_endpoint(websocket: WebSocket, secret: str):
             data = await websocket.receive_text() # 获取客户端push过来的消息
             logging.info("收到来自ws的消息: %s", data)
     except WebSocketDisconnect:
-        logging.info(f" {secret} 的 WebSocket 连接断开.")
-        del active_connections[secret] # 当连接断开时，从字典中移除
+                # 创建一个新的secret变量数组，并且添加secret到数组中
+                SecretArray = [secret]
+                await heartbeat(SecretArray) # 调用心跳检测函数
 
 # 启动服务
 if __name__ == "__main__":
     import uvicorn
+    import asyncio
+    if heartbeat_status==True:
+        asyncio.run(heartbeat()) # 启动心跳检测
     uvicorn.run(app, host="0.0.0.0", port=8000) # 端口 8000 监听所有 IP
+    
